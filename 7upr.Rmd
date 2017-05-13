@@ -1,70 +1,98 @@
 ---
 title: "Упражнение 7"
-author: ""
+author: "S.A. Davydova"
 date: '06 апреля 2017 г '
 output: html_document
 ---
 
+```{r Библиотеки, echo = F, message = F}
+library('MASS')              
+library('splines')           # сплайны
+library('gam')               # обобщённые аддитивные модели
+library('akima')             # график двумерной плоскости
 
-```{r include = F}
-library('ISLR')              
-library('splines')           
-library('gam')              
-library('akima')             
-library('MASS') 
-data(Boston)
-Boston
+attach(Boston)
+my.seed <- 1
+n <- nrow(Boston)
+train.percent <- 0.5
+```
+
+Рассматривается зависимость
+переменной nox (Концентрация оксидов азота (частей на 10 млн.))
+от переменной dis (средневзвешенное расстояние до пяти центров занятости в Бостоне.)
+В рамках метода подгонки Локальная регрессия рассматривается подбор
+настроечного параметра - ширина окна s. 
+
+```{r message = F, echo = T}
+dislims <- range(dis)
+
+# значения dis, для которых делаем прогноз (от min до max с шагом 1)
+dis.grid <- seq(from = dislims[1], to = dislims[2])
+
+# график 
+plot(dis, nox, xlim = dislims, cex = 0.5, col = 'darkgrey')
+title('Локальная регрессия')
+
+# подгоняем модель c окном 0.2
+fit1 <- loess(nox ~ dis, span = 0.2, data = Boston)
+# подгоняем модель c окном 0.3
+fit2 <- loess(nox ~ dis, span = 0.3, data = Boston)
+# подгоняем модель c окном 0.4
+fit3 <- loess(nox ~ dis, span = 0.4, data = Boston)
+# подгоняем модель c окном 0.5
+fit4 <- loess(nox ~ dis, span = 0.5, data = Boston)
+# подгоняем модель c окном 0.6
+fit5 <- loess(nox ~ dis, span = 0.6, data = Boston)
+# подгоняем модель c окном 0.7
+fit6 <- loess(nox ~ dis, span = 0.7, data = Boston)
+# подгоняем модель c окном 0.8
+fit7 <- loess(nox ~ dis, span = 0.8, data = Boston)
 
 my.seed <- 1
 
-attach(Boston)
+MSE <- rep(0, 7)
+names(MSE) <- (2:8)/10
+
+for (i in 2:8){
+  fit <- loess(nox ~ dis, span = (i/10), data = Boston)
+  for (j in 1:5){
+    my.seed <- j
+    set.seed(my.seed)
+    inTrain <- sample(n, n * train.percent)
+    MSE[i-1] <- MSE[i-1]+mean((Boston$nox[-inTrain] - predict(fit,
+                                                              Boston[-inTrain, ]))^2)
+  }
+  MSE[i-1] <- MSE[i-1]/5
+}
+MSE
 
 ```
 
-## Подгоняем модель на всех наблюдениях, меняем настроенчый параметр
+Минимальный MSE при s = 0,2
 
-```{r}
+## График 
 
-# границы изменения переменной age
-agelims <- range(dis)
-# значения age, для которых делаем прогноз (от min до max с шагом 1)
-age.grid <- seq(from = agelims[1], to = agelims[2])
-
-plot(dis, nox, xlim = agelims, cex = 0.5, col = 'darkgrey')
+```{r echo = T, warning = F, error = F}
+plot(Boston$dis, Boston$nox, xlim = dislims, cex = 0.5, col = 'darkgrey')
 title('Локальная регрессия')
-# подгоняем модель c окном 0.2
-fit <- loess(nox ~ dis, span = 0.2, data = Boston)
-# подгоняем модель c окном 0.5
-fit2 <- loess(nox ~ dis, span = 0.5, data = Boston)
-# подгоняем модель c окном 0.7
-fit3 <- loess(nox ~ dis, span = 0.7, data = Boston)
-# рисум модели
-lines(age.grid, predict(fit, data.frame(dis = age.grid)),
+
+# рисум модель
+lines(dis.grid, predict(fit1, data.frame(dis = dis.grid)),
       col = 'red', lwd = 2)
-lines(age.grid, predict(fit2, data.frame(dis = age.grid)),
-      col = 'blue', lwd = 2)
-lines(age.grid, predict(fit3, data.frame(dis = age.grid)),
-      col = 'yellow', lwd = 2)
-legend('topright', 
-       c('s = 0.2', 's = 0.5', 's = 0,7'),
-       col = c('red', 'blue', 'yellow'), lty = 1, lwd = 2, cex = 0.8)
+legend('topleft', 
+       c('s = 0.2'),
+       col = c('red'), lty = 1, lwd = 2, cex = 0.8)
 
-anova(fit, fit2, fit3)
 
-#s = 0,7
-#dev.off()
+# рассчитать прогнозы и их стандартные ошибки
+preds <- predict(fit1, data.frame(dis = dis.grid),se=T)
+# границы доверительного интервала
+se.bands <- cbind(preds$fit + 2*preds$se.fit,
+                  preds$fit - 2*preds$se.fit)
+
+# доверительный интервал
+lines(dis.grid, se.bands[,1],
+      col = 'blue', lwd = 1)
+lines(dis.grid, se.bands[,2],
+      col = 'blue', lwd = 1)
 ```
-
-## Делаеv прогноз, строим доверительные интервалы
-
-```{r}
-
-preds <- predict(fit3, newdata = Boston)
-se.bands <- cbind(preds + 2*preds,
-                  preds - 2*preds)
-#age.grid <- seq(from = agelims[1], to = agelims[2])
-matlines(age.grid, se.bands, lwd = 1, col = 'blue', lty = 3)
-
-
-```
-
